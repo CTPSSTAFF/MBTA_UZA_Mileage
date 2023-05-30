@@ -290,11 +290,13 @@ Label and convert the units then export the data to CSVs.
 # Label Units.
 trains_pass_UZA10_summ <- trains_pass_UZA10_summ |> 
   rename(len_tot_m = len_tot) |> 
-  mutate(len_tot_mi = measurements::conv_unit(len_tot_m, "m", "mi")) |> select(NAME10, len_tot_m, len_tot_mi, pct)
+  mutate(len_tot_mi = measurements::conv_unit(len_tot_m, "m", "mi")) |> 
+  select(NAME10, len_tot_m, len_tot_mi, pct)
 
 trains_pass_UZA20_summ <- trains_pass_UZA20_summ |> 
   rename(len_tot_m = len_tot) |> 
-  mutate(len_tot_mi = measurements::conv_unit(len_tot_m, "m", "mi")) |> select(NAME20, len_tot_m, len_tot_mi, pct)
+  mutate(len_tot_mi = measurements::conv_unit(len_tot_m, "m", "mi")) |> 
+  select(NAME20, len_tot_m, len_tot_mi, pct)
 
 write_csv(trains_pass_UZA10_summ, "../output/trains_pass_UZA10_summ.csv")
 
