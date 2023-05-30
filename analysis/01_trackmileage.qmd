@@ -1,0 +1,328 @@
+---
+title: "Calculating Track Mileage by UZA"
+author: "Steven Andrews, Boston Region MPO"
+date: today
+format: 
+  html:
+    embed-resources: true
+editor: visual
+---
+
+```{r}
+#| warning: false
+#| message: false
+library(sf)
+library(tidyverse)
+library(mapview)
+library(gtfstools)
+library(stringr)
+library(gt)
+mapviewOptions(fgb = FALSE)
+```
+
+## UZA Work
+
+We write a function to grab the files from the Census Bureau site and perform light filtering and manipulation.
+
+```{r}
+#| warning: false
+#| message: false
+sf_from_zip <- function(URL) {
+  # based on:
+  # https://stackoverflow.com/questions/59740419/unzipping-and-reading-shape-file-in-r-without-rgdal-installed
+  
+  # Load local temp files
+  temp_0 <- tempfile()
+  temp_1 <- tempfile()
+  
+  # download the zip, put it in the first temp directory
+  download.file(URL, temp_0)
+  
+  # Unzip and place in temp_1
+  unzip(zipfile = temp_0, exdir = temp_1)
+  
+  # Read the shapefile.
+  geom_sf <- sf::read_sf(temp_1)
+  
+  out <- geom_sf
+}
+
+```
+
+```{r}
+#| warning: false
+#| message: false
+#| eval: false
+
+# Record the URLs.
+UZA10_URL <- "https://www2.census.gov/geo/tiger/TIGER2020/UAC/tl_2020_us_uac10.zip"
+UZA20_URL <- "https://www2.census.gov/geo/tiger/TIGER2020/UAC/tl_2020_us_uac20.zip"
+
+# Obtain the data.
+UZA10 <- sf_from_zip(UZA10_URL)
+UZA20 <- sf_from_zip(UZA20_URL)
+
+# Transform to state coordinate system.
+UZA10 <- UZA10 |> sf::st_transform(26986)
+UZA20 <- UZA20 |> sf::st_transform(26986)
+
+NE <- c("MA", "CT", "RI", "VT", "NH", "ME")
+NE_collapse <- paste0(NE,collapse = "|")
+
+# Clean the UZAs for processing. We want to separate out
+# clusters (C) and Urbanized Areas (U)
+UZA10_NE <- UZA10 |>
+  filter(str_detect(NAME10, NE_collapse)) |> 
+  mutate(UZA_type = if_else(UATYP10 == "C", 
+                            "Census 2010 Cluster", 
+                            "Census 2010 Urbanized Area"))
+
+# There are only Urban Areas in 2020.
+UZA20_NE <- UZA20 |>
+  filter(str_detect(NAME20, NE_collapse))
+
+saveRDS(UZA10_NE, "../data/processed/UZA10_NE.rds")
+saveRDS(UZA20_NE, "../data/processed/UZA20_NE.rds")
+```
+
+## CR Line Work
+
+We start by downloading the MassGIS "[trains](https://www.mass.gov/info-details/massgis-data-trains)" feature. In this dataset Foxboro service is the full line between Walpole and the Providence Line. We want to clip that to Foxboro Station. We use a recent GTFS file for this.
+
+```{r}
+#| warning: false
+#| message: false
+
+# Read in the trains file.
+# This function works only because the lines we want are the first layer. 
+# Otherwise, we'd need to change the function to accept a layer name/number.
+trains <- sf_from_zip("https://s3.us-east-1.amazonaws.com/download.massgis.digital.mass.gov/shapefiles/state/trains.zip") |> 
+  mutate(feature_id = row_number())
+
+# Fix an error: 3235 is a small segment that seems to missclassified on the Lowell Line @ Town Farm Lane towards the north end of the line. 
+# This is a very fragile fix because the id is the row_number. 
+trains <- trains |> 
+  mutate(COMMRAIL = if_else(feature_id == 3235, "Y", COMMRAIL))
+
+# Select passenger trains and "special trains". 
+# Exclude yards and Foxboro, which we replace later on. 
+# We also don't want the Plymouth Station section of track which is not in use for passenger service.
+trains_pass <- trains |> filter(COMMRAIL == "Y" | COMMRAIL == "S", 
+                                is.na(YARD),
+                                !COMM_LINE == "+fox+",
+                                !COMM_LINE %in% c('+OC+PLY-KING+PLY+',
+                                                '+OC+KING+'))
+
+mapview(trains_pass, zcol = "COMM_LINE", color = viridis::turbo, legend = FALSE)
+```
+
+### Handle Foxboro Station
+
+```{r}
+#| warning: false
+#| message: false
+# This is the last Summer 2022 GTFS schedule. 
+# We chose this because it contains the CapeFlyer if we need it. 
+gtfs_summ22 <- gtfstools::read_gtfs("https://cdn.mbtace.com/archive/20220812.zip")
+
+# Convert to MA system.
+gtfs_summ22_shp <- convert_shapes_to_sf(gtfs_summ22) |> 
+  st_transform(26986)
+
+# Select only Foxboro.
+gtfs_summ22_trips_fox <- gtfs_summ22$trips |> 
+  filter(str_detect(route_id, "Foxboro")) |> 
+  distinct(shape_id)
+```
+
+We find the portion of the `trains` segment that is on the Foxboro branch from a GTFS file.
+
+```{r}
+#| warning: false
+#| message: false
+
+# Buffer the GTFS shape by 15 meters, which seems to capture the full Foxboro branch. 
+gtfs_summ22_fox_buff <- gtfs_summ22_shp |> 
+  filter(shape_id %in% gtfs_summ22_trips_fox$shape_id) |> 
+  st_buffer(15)
+
+# Select only those train segments for for Foxboro.
+trains_fox <- trains |> filter(COMM_LINE == "+fox+")
+
+# Intersect the datasets.
+trains_fox_int <- st_intersection(trains_fox, gtfs_summ22_fox_buff)
+
+# Visually inspect the results.
+mapview(trains_fox_int) + mapview(gtfs_summ22_fox_buff, col.regions = "grey50")
+```
+
+and we append it to our `trains_pass` dataset.
+
+```{r}
+#| warning: false
+#| message: false
+
+# Attach Foxboro to the rest of the dataset.
+trains_pass <- bind_rows(trains_pass, trains_fox_int)
+
+# View results
+mapview(trains_pass, zcol = "COMM_LINE", color = viridis::turbo, legend = FALSE)
+
+# Save for easy loading.
+saveRDS(trains_pass, "../data/processed/trains_pass.rds")
+```
+
+## Perform Intersections
+
+Read in the pre-generated datasets.
+
+```{r}
+# Read in trains
+trains_pass <- readRDS("../data/processed/trains_pass.rds")
+
+# Read in UZA
+UZA10_NE <- readRDS("../data/processed/UZA10_NE.rds")
+UZA20_NE <- readRDS("../data/processed/UZA20_NE.rds")
+
+# Create labels for helpful hovering.
+labs10 <- UZA10_NE$NAME10
+labs20 <- UZA20_NE$NAME20
+```
+
+We perform an intersection over each of the datasets. We map the datasets
+
+```{r}
+#| warning: false
+#| message: false
+trains_pass_UZA10 <- st_intersection(trains_pass, UZA10_NE)
+trains_pass_UZA20 <- st_intersection(trains_pass, UZA20_NE)
+
+# Display the results for 2020 UZAs.
+mapview(trains_pass, 
+    layer.name = "All Tracks",
+    color = "black",
+    lwd = 4) +  
+mapview(UZA20_NE |> filter(NAME20 %in% trains_pass_UZA20$NAME20), 
+    zcol = "NAME20", 
+    col.regions = viridis::turbo, 
+    alpha.regions = 0.30,
+    layer.name = "UZA 2020: UZA",
+    legend = FALSE) + 
+mapview(UZA20_NE |> filter(!NAME20 %in% trains_pass_UZA20$NAME20), 
+    zcol = "NAME20", 
+    col.regions = "grey90", 
+    alpha.regions = 0.30,
+    layer.name = "UZA 2020: Non UZA",
+    legend = FALSE) +
+mapview(trains_pass_UZA20, 
+    zcol = "NAME20", 
+    layer.name = "Tracks by UZA",
+    color = viridis::turbo)
+
+```
+
+### Aggregate by UZA
+
+We want to aggregate the data by UZA. We calculate the length of the track in each UZA, then sum. We subtract from the total to find the Non UZA area.
+
+```{r}
+# Find the total mileage of the CR system. (In meters!)
+trains_pass$len <- st_length(trains_pass) |> 
+  units::drop_units()
+
+# Aggregate for the total.
+trains_pass_len_tot <- sum(trains_pass$len)
+
+# Calculate the length then drop the units for 2010 and 2020.  
+trains_pass_UZA10$len <- st_length(trains_pass_UZA10) |> 
+  units::drop_units()
+
+trains_pass_UZA20$len <- st_length(trains_pass_UZA20) |> 
+  units::drop_units()
+
+#  Summarize 2010 by UZA
+trains_pass_UZA10_summ <- trains_pass_UZA10 |> 
+  group_by(NAME10) |> 
+  summarize(len_tot = sum(len)) |> 
+  st_drop_geometry()
+
+# Find length in UZAs
+UZA10_len <- sum(trains_pass_UZA10_summ$len_tot)
+
+# Subtract and attach the non-UZA length. Make a fresh row to append.
+trains_pass_UZA10_summ <- bind_rows(
+  trains_pass_UZA10_summ,
+  tibble(NAME10 = "NonUZA", 
+         len_tot = trains_pass_len_tot - UZA10_len))
+
+# Calculate the percentage by UZA.
+trains_pass_UZA10_summ <- trains_pass_UZA10_summ |> 
+  mutate(pct = len_tot/sum(len_tot))
+
+# Check Delta
+sum(trains_pass_UZA10_summ$len_tot) - trains_pass_len_tot
+
+# Summarize 2020 by Geometry ------------
+trains_pass_UZA20_summ <- trains_pass_UZA20 |> 
+  group_by(NAME20) |> 
+  summarize(len_tot = sum(len)) |> 
+  st_drop_geometry()
+
+# Find length in UZAs
+UZA20_len <- sum(trains_pass_UZA20_summ$len_tot)
+
+# Subtract and attach the non-UZA length. Make a fresh row to append.
+trains_pass_UZA20_summ <- bind_rows(
+  trains_pass_UZA20_summ,
+  tibble(NAME20 = "NonUZA", 
+         len_tot = trains_pass_len_tot - UZA20_len))
+
+trains_pass_UZA20_summ <- trains_pass_UZA20_summ |> 
+  mutate(pct = len_tot/sum(len_tot))
+
+# Check Delta
+sum(trains_pass_UZA20_summ$len_tot) - trains_pass_len_tot
+```
+
+Label and convert the units then export the data to CSVs.
+
+```{r}
+# Label Units.
+trains_pass_UZA10_summ <- trains_pass_UZA10_summ |> 
+  rename(len_tot_m = len_tot) |> 
+  mutate(len_tot_mi = measurements::conv_unit(len_tot_m, "m", "mi")) |> select(NAME10, len_tot_m, len_tot_mi, pct)
+
+trains_pass_UZA20_summ <- trains_pass_UZA20_summ |> 
+  rename(len_tot_m = len_tot) |> 
+  mutate(len_tot_mi = measurements::conv_unit(len_tot_m, "m", "mi")) |> select(NAME20, len_tot_m, len_tot_mi, pct)
+
+write_csv(trains_pass_UZA10_summ, "../output/trains_pass_UZA10_summ.csv")
+
+write_csv(trains_pass_UZA20_summ, "../output/trains_pass_UZA20_summ.csv")
+```
+
+::: panel-tabset
+## 2020 UZAs
+
+```{r}
+#| echo: false
+trains_pass_UZA20_summ |> 
+  arrange(desc(len_tot_mi)) |> 
+  janitor::adorn_totals() |> 
+  gt() |> 
+  fmt_percent(pct) |> 
+  fmt_number(columns = c(len_tot_m, len_tot_mi))
+```
+
+## 2010 UZAs
+
+```{r}
+#| echo: false
+trains_pass_UZA10_summ |> 
+  arrange(desc(len_tot_mi)) |> 
+  janitor::adorn_totals() |> 
+  gt() |> 
+  fmt_percent(pct) |> 
+  fmt_number(columns = c(len_tot_m, len_tot_mi))
+```
+:::
