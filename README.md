@@ -1,13 +1,12 @@
-readme
-================
 
 ## Generating MBTA Track Mileage by UZA
 
-In 2022, the US Census Bureau released updated urbanized area
+In 2022, the US Census Bureau released updated urbanized area (UZA)
 boundaries. The `.qmd` in this repo outlines the process of intersecting
 the [MassGIS Data:
 Trains](https://www.mass.gov/info-details/massgis-data-trains) dataset
-over these geographies.
+over these geographies to find the length of commuter rail track in each
+urbanized area.
 
 We use the MassGIS dataset because it appears to have more detail on the
 layout of the actual tracks–it appears to account for single track
