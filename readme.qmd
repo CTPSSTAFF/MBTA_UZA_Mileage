@@ -5,18 +5,61 @@ editor: visual
 
 ## Generating MBTA Track Mileage by UZA
 
-In 2022, the US Census Bureau released updated urbanized area (UZA) boundaries. The `.qmd` in this repo outlines the process of intersecting the [MassGIS Data: Trains](https://www.mass.gov/info-details/massgis-data-trains) dataset over these geographies to find the length of commuter rail track in each urbanized area.
+In 2022, the US Census Bureau released updated urbanized area (UZA) boundaries. The goal of this script is to find the **directional route mileage** in each urbanized area. From past submissions, the answers were:
+
+-   Boston UZA: ??.?
+-   Worcester UZA: 25.9 miles
+-   Providence UZA: 72.9 miles
+-   Total 776.1 miles
+
+## Trains Data
+
+The `01_trackmileage``qmd` in this repo outlines the process of intersecting the [MassGIS Data: Trains](https://www.mass.gov/info-details/massgis-data-trains) dataset over these geographies to find the length of commuter rail track in each urbanized area.
 
 We use the MassGIS dataset because it appears to have more detail on the layout of the actual tracks--it appears to account for single track segments and all of the tracks at terminal stations. The GTFS file is used to more accurately end the Foxboro service, which is represented as the full length of service between Walpole and the Providence Line. Other changes including fixing a small segment of track on the Lowell Line that was observed during the checking process. We also remove Plymouth Station, which is no longer in service.
+
+The values overall seem off. Providence UZA seems to be notably too high. It also is not successful in calculating directional route miles--it calculates track miles for lines that are single-tracked.
+
+For comparison (2010 UZA Definitions):
+
+-   Boston UZA: 507.5 miles
+-   Worcester UZA: 25.2 miles
+-   Providence UZA: 90.7 miles
+-   Total: 733.3 miles
+
+## GTFS Data
+
+This approach, found in `02_trackmileage_gtfs.qmd` uses the Summer 2022 GTFS file to calculate the directional route miles. In this mode, the GTFS commuter rail routes are buffered to collect the lines traveling along the same path. The buffers are turned into a line, which conveniently can represent the directional route miles on each side of the route.
+
+*Note: Some alignments may not be accessible from one track--they are essentially separate alignments. Buffering the shapes eliminates this distinction. The buffering also eliminates some detail when tracks converge and diverge. The error is assumed to be relatively small because the number of junctions is small compared to the length of the commuter rail alignments.*
+
+For comparison (2010 UZA Definitions):
+
+-   Boston UZA: 599.0 miles
+-   Worcester UZA: 72.9 miles
+-   Providence UZA: 25.9 miles
+-   Total: 866.9 miles
+
+#### Repeat without CapeFlyer Service
+
+We can repeat the above analysis (`03_trackmileage_gtfs_noCF.qmd`) excluding the CapeFlyer service. This should provide a better comparison of the methodology to prior methods.
+
+For comparison (2010 UZA Definitions):
+
+-   Boston UZA: 598.9 miles
+-   Worcester UZA: 72.9 miles
+-   Providence UZA: 25.9 miles
+-   Total: 779.7 miles
 
 #### Sources
 
 Trains:
 
--   Tracks: https://www.mass.gov/info-details/massgis-data-trains
 -   Tracks (GTFS): https://cdn.mbtace.com/archive/20220812.zip
+-   (Not Used) Tracks: https://www.mass.gov/info-details/massgis-data-trains
 
 UZAs:
 
 -   2010 UZAs: https://www2.census.gov/geo/tiger/TIGER2020/UAC/tl_2020_us_uac10.zip
 -   2020 UZAs: https://www2.census.gov/geo/tiger/TIGER2020/UAC/tl_2020_us_uac20.zip
+-   https://www.transit.dot.gov/ntd/2020-census-changes-uzapopulation
