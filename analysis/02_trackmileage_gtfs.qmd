@@ -194,7 +194,7 @@ trains_pass_UZA20 <- st_intersection(trains_pass, UZA20_NE)
 We map the datasets, showing only UZAs in MA.
 
 ::: callout-tip
-The 2010 UZA boundaries are also shown over the modern alignments. This can be useful to seeing how the boundaries have changed in relation to the current alignments. Notice the new encroachment of the Providence UZA into what was once the Boston UZA, which now captures some of the Franklin Line.
+The 2010 UZA boundaries are also shown over the modern alignments. This can be useful to see how the boundaries have changed in relation to the current alignments. Notice the new encroachment of the Providence UZA into what was once the Boston UZA, which now captures some of the Franklin Line.
 :::
 
 ```{r}
