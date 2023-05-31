@@ -1,0 +1,99 @@
+---
+title: "Summary of Methods"
+author: "Steven Andrews, Boston Region MPO"
+date: today
+format: 
+  html:
+    embed-resources: true
+editor: visual
+---
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+library(tidyverse)
+library(purrr)
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+
+a <- read_csv("../output/trains_pass_UZA10_summ.csv") |>
+  mutate(source = "trains", cf = "CF", year = 2010)
+
+b <- read_csv("../output/trains_pass_UZA20_summ.csv") |>
+  mutate(source = "trains", cf = "CF", year = 2020)
+
+c <- read_csv("../output/trains_pass_gtfs_UZA10_summ.csv") |>
+  mutate(source = "gtfs", cf = "CF", year = 2010)
+
+d <- read_csv("../output/trains_pass_gtfs_UZA20_summ.csv") |>
+  mutate(source = "gtfs",cf = "CF", year = 2020)
+
+e <- read_csv("../output/trains_pass_gtfs_UZA10_noCF_summ.csv") |>
+  mutate(source = "gtfs",cf = "No CF", year = 2010)
+
+f <- read_csv("../output/trains_pass_gtfs_UZA20_noCF_summ.csv") |>
+  mutate(source = "gtfs",cf = "No CF", year = 2020)
+
+output <- bind_rows(a,b,c,d,e,f)
+
+output <- output |> 
+  mutate(name = coalesce(NAME10, NAME20)) |> 
+  select(name, cf, year, source, len_tot_mi) 
+
+wide_2010 <- output |> 
+  filter(year == 2010) |> 
+  pivot_wider(names_from = c(source, cf), values_from = len_tot_mi)
+
+wide_2020 <- output |> 
+  filter(year == 2020) |> 
+  pivot_wider(names_from = c(source, cf), values_from = len_tot_mi)
+```
+
+Using the 2010 UZA boundaries as a base to compare the methodologies used, the "trains" dataset method underrepresents the Boston UZA, possibly because of a poor representation of single track operation.
+
+Note:
+
+-   trains = MassGIS trains dataset
+-   gtfs = GTFS-based dataset
+-   CF = whether CF was included (CF, No CF)
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+wide_2010 |> 
+  arrange(desc(gtfs_CF)) |> 
+  mutate(year = as.character(year)) |>
+  janitor::adorn_totals() |> 
+  gt::gt() |> 
+  gt::fmt_number(columns = 3:5, decimals = 1)
+```
+
+Compare these to the previous values of:
+
+-   Boston UZA: ??.?
+-   Worcester UZA: 25.9 miles
+-   Providence UZA: 72.9 miles
+-   Total 776.1 miles
+
+The final column, no CapeFlyer, and using GTFS appears to most closely match the methodology.
+
+Note that Ipswich is a small urbanized area with a population of less than 50K. Leominster-Fitchburg has a population of approximately 110K. Barnstable has a population of approximately 300K. Boston (4,300K), Providence(1,200K), and Worcester (480K) have larger populations.
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+wide_2020 |>   
+  arrange(desc(gtfs_CF)) |> 
+  mutate(year = as.character(year)) |>
+  janitor::adorn_totals() |> 
+  gt::gt() |> 
+  gt::fmt_number(columns = 3:5, decimals = 1)
+```
