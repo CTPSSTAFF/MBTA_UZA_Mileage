@@ -13,7 +13,7 @@ were:
 
 ## Trains Data
 
-The ``` 01_trackmileage``qmd ``` in this repo outlines the process of
+The `01_trackmileage.qmd` in this repo outlines the process of
 intersecting the [MassGIS Data:
 Trains](https://www.mass.gov/info-details/massgis-data-trains) dataset
 over these geographies to find the length of commuter rail track in each
@@ -62,7 +62,7 @@ For comparison (2010 UZA Definitions):
 - Providence UZA: 25.9 miles
 - Total: 866.9 miles
 
-#### Repeat without CapeFlyer Service
+### Repeat without CapeFlyer Service
 
 We can repeat the above analysis (`03_trackmileage_gtfs_noCF.qmd`)
 excluding the CapeFlyer service. This should provide a better comparison
@@ -75,7 +75,7 @@ For comparison (2010 UZA Definitions):
 - Providence UZA: 25.9 miles
 - Total: 779.7 miles
 
-#### Sources
+## Sources
 
 Trains:
 
