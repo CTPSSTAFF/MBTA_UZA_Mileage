@@ -189,34 +189,42 @@ labs10 <- UZA10_NE$NAME10
 labs20 <- UZA20_NE$NAME20
 ```
 
-We perform an intersection over each of the datasets. We map the datasets
+We perform an intersection over each of the datasets. We map the datasets. Visual inspection appears to show some extra sidings in RI that may be adding extra mileage. More work would need to be done to explore what combination of fields need to be changed to isolate the lines that are used for service.
 
 ```{r}
+#| panel: 
 #| warning: false
 #| message: false
 trains_pass_UZA10 <- st_intersection(trains_pass, UZA10_NE)
 trains_pass_UZA20 <- st_intersection(trains_pass, UZA20_NE)
 
+UZA20_MA <- UZA20_NE |> 
+  filter(str_detect(NAME20, "MA")) |> 
+  select(GEOID20, NAME20)
+  
 # Display the results for 2020 UZAs.
-mapview(trains_pass, 
+mapview(trains_pass |> summarize(name = "All Tracks"), 
     layer.name = "All Tracks",
     color = "black",
-    lwd = 4) +  
-mapview(UZA20_NE |> filter(NAME20 %in% trains_pass_UZA20$NAME20), 
+    lwd = 2) +  
+mapview(UZA20_MA |> filter(NAME20 %in% trains_pass_UZA20$NAME20), 
     zcol = "NAME20", 
     col.regions = viridis::turbo, 
     alpha.regions = 0.30,
     layer.name = "UZA 2020: UZA",
     legend = FALSE) + 
-mapview(UZA20_NE |> filter(!NAME20 %in% trains_pass_UZA20$NAME20), 
+mapview(UZA20_MA |> filter(!NAME20 %in% trains_pass_UZA20$NAME20), 
     zcol = "NAME20", 
     col.regions = "grey90", 
     alpha.regions = 0.30,
     layer.name = "UZA 2020: Non UZA",
     legend = FALSE) +
-mapview(trains_pass_UZA20, 
+mapview(trains_pass_UZA20 |> 
+          group_by(NAME20) |> 
+          summarize(), 
     zcol = "NAME20", 
     layer.name = "Tracks by UZA",
+    lwd = 3, 
     color = viridis::turbo)
 
 ```
