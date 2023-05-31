@@ -82,9 +82,9 @@ Compare these to the previous values of:
 -   Providence UZA: 72.9 miles
 -   Total 776.1 miles
 
-The final column, no CapeFlyer, and using GTFS appears to most closely match the methodology.
+The final column (no CapeFlyer using GTFS) appears to most closely match the prior methodology.
 
-Note that Ipswich is a small urbanized area with a population of less than 50K. Leominster-Fitchburg has a population of approximately 110K. Barnstable has a population of approximately 300K. Boston (4,300K), Providence(1,200K), and Worcester (480K) have larger populations.
+Note that Ipswich is a small urbanized area with a population of less than 50K. Leominster-Fitchburg has a population of approximately 110K. Barnstable has a population of approximately 300K. Boston (4,300K), Providence (1,200K), and Worcester (480K) have larger populations.
 
 ```{r}
 #| echo: false
