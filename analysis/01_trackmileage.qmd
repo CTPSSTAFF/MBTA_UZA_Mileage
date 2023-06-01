@@ -192,7 +192,6 @@ labs20 <- UZA20_NE$NAME20
 We perform an intersection over each of the datasets. We map the datasets. Visual inspection appears to show some extra sidings in RI that may be adding extra mileage. More work would need to be done to explore what combination of fields need to be changed to isolate the lines that are used for service.
 
 ```{r}
-#| panel: 
 #| warning: false
 #| message: false
 trains_pass_UZA10 <- st_intersection(trains_pass, UZA10_NE)
