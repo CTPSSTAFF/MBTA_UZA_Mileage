@@ -1,0 +1,37 @@
+---
+title: "2020 Urbanized Area Map"
+subtitle: "UZAs containing 'MA'"
+author: "Steven Andrews, Boston Region MPO"
+date: today
+format: 
+  html:
+    embed-resources: true
+editor: visual
+---
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+library(mapview)
+library(sf)
+library(tidyverse)
+mapviewOptions(leafletHeight = "700px")
+```
+
+```{r}
+#| column: screen-inset-shaded
+#| echo: false
+map <- read_rds("../data/processed/outputmap.rds")
+map
+```
+
+::: callout-note
+This map only shows urbanized areas that contain a part of Massachusetts. Unshaded UZAs have populations of less than 50,000 people.
+:::
+
+**Sources:**
+
+-   MBTA Shapes Summer 2022 GTFS: <https://cdn.mbtace.com/archive/20220812.zip>
+-   UZA Shapes: <https://www2.census.gov/geo/tiger/TIGER2020/UAC/tl_2020_us_uac20.zip>
+-   UZA Population: <https://www.transit.dot.gov/ntd/2020-census-changes-uzapopulation>
