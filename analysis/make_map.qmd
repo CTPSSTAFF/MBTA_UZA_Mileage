@@ -27,7 +27,7 @@ map
 ```
 
 ::: callout-note
-This map only shows urbanized areas that contain a part of Massachusetts. Unshaded UZAs have populations of less than 50,000 people.
+This map only shows urbanized areas that contain a part of Massachusetts. Shaded UZAs have populations of 50,000 or more people.
 :::
 
 **Sources:**
