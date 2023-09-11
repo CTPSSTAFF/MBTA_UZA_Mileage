@@ -119,6 +119,9 @@ gtfs_summ22_shp <-
              gtfs_summ22$trips |> distinct(route_id, shape_id),
              by = "shape_id")
 
+gtfs_summ22_stp <- gtfs_summ22 |> convert_stops_to_sf() 
+gtfs_summ22_stp <- gtfs_summ22_stp |> filter(vehicle_type == 2) |> 
+  distinct(stop_name, .keep_all = TRUE)
 ```
 
 We need to filter the shapes for commuter rail lines. We can view the shapes to confirm that this matches the system as we know it.
@@ -242,7 +245,7 @@ mapview(trains_pass_UZA20 |>
     zcol = "NAME20", 
     layer.name = "Tracks by 2020 UZA",
     lwd = 3, 
-    color = viridis::turbo)
+    color = viridis::turbo) 
 
 ```
 
