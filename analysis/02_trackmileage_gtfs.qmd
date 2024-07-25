@@ -1,5 +1,5 @@
 ---
-title: "Estimating Direction Route Mileage by UZA"
+title: "Estimating Directional Route Mileage by UZA"
 author: "Steven Andrews, Boston Region MPO"
 date: today
 format: 
