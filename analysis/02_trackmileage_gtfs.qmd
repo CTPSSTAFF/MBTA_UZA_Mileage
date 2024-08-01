@@ -1,5 +1,5 @@
 ---
-title: "Calculating Track Mileage by UZA"
+title: "Estimating Directional Route Mileage by UZA"
 author: "Steven Andrews, Boston Region MPO"
 date: today
 format: 
@@ -56,11 +56,9 @@ sf_from_zip <- function(URL) {
 #| eval: false
 
 # Record the URLs.
-UZA10_URL <- "https://www2.census.gov/geo/tiger/TIGER2020/UAC/tl_2020_us_uac10.zip"
 UZA20_URL <- "https://www2.census.gov/geo/tiger/TIGER2020/UAC/tl_2020_us_uac20.zip"
 
 # Obtain the data.
-UZA10 <- sf_from_zip(UZA10_URL)
 UZA20 <- sf_from_zip(UZA20_URL)
 
 # Read data from population file:
@@ -72,19 +70,10 @@ UZA20_pop <- read_xlsx("../data/base/UZA_CHANGES_1990-2020_2_2.xlsx",
   mutate(x2020_uace = str_pad(x2020_uace, side = "left", pad = "0", 5))
 
 # Transform to state coordinate system.
-UZA10 <- UZA10 |> sf::st_transform(26986)
 UZA20 <- UZA20 |> sf::st_transform(26986)
 
 NE <- c("MA", "CT", "RI", "VT", "NH", "ME")
 NE_collapse <- paste0(NE,collapse = "|")
-
-# Clean the UZAs for processing. We want to separate out
-# clusters (C) and Urbanized Areas (U)
-UZA10_NE <- UZA10 |>
-  filter(str_detect(NAME10, NE_collapse)) |> 
-  mutate(UZA_type = if_else(UATYP10 == "C", 
-                            "Census 2010 Cluster", 
-                            "Census 2010 Urbanized Area"))
 
 # There are only Urban Areas in 2020.
 UZA20_NE <- UZA20 |>
@@ -94,33 +83,32 @@ UZA20_NE <- UZA20 |>
                             "Pop: GTE 50k", 
                             "Pop: LT 50k"))
 
-saveRDS(UZA10_NE, "../data/processed/UZA10_NE.rds")
 saveRDS(UZA20_NE, "../data/processed/UZA20_NE.rds")
 ```
 
 ## CR Line Work
 
-We start by downloading the last Summer 2022 GTFS file from the [MBTA's GTFS archive](https://cdn.mbta.com/archive/archived_feeds.txt). This file contains information for the CapeFlyer and has the recent Foxboro Branch.
+We start by downloading the last Summer 2023 GTFS file from the [MBTA's GTFS archive](https://cdn.mbta.com/archive/archived_feeds.txt). This file contains information for the CapeFlyer and has the recent Foxboro Branch. We remove the segments running from the Providence Line to Foxboro as they are not typical service.
 
 ```{r}
 #| warning: false
 #| message: false
 # This is the last Summer 2022 GTFS schedule. 
 # We chose this because it contains the CapeFlyer if we need it. 
-gtfs_summ22 <- gtfstools::read_gtfs("https://cdn.mbtace.com/archive/20220812.zip")
+gtfs_summ23 <- gtfstools::read_gtfs("https://cdn.mbtace.com/archive/20230810.zip")
 
 # Convert shapes to MA system.
-gtfs_summ22_shp <- convert_shapes_to_sf(gtfs_summ22) |> 
+gtfs_summ23_shp <- convert_shapes_to_sf(gtfs_summ23) |> 
   st_transform(26986)
 
 # Attach them to our route_ids so we can have hints about what each shape is.
-gtfs_summ22_shp <-
-  inner_join(gtfs_summ22_shp,
-             gtfs_summ22$trips |> distinct(route_id, shape_id),
+gtfs_summ23_shp <-
+  inner_join(gtfs_summ23_shp,
+             gtfs_summ23$trips |> distinct(route_id, shape_id),
              by = "shape_id")
 
-gtfs_summ22_stp <- gtfs_summ22 |> convert_stops_to_sf() 
-gtfs_summ22_stp <- gtfs_summ22_stp |> filter(vehicle_type == 2) |> 
+gtfs_summ23_stp <- gtfs_summ23 |> convert_stops_to_sf() 
+gtfs_summ23_stp <- gtfs_summ23_stp |> filter(vehicle_type == 2) |> 
   distinct(stop_name, .keep_all = TRUE)
 ```
 
@@ -129,10 +117,10 @@ We need to filter the shapes for commuter rail lines. We can view the shapes to 
 ```{r}
 #| warning: false
 #| message: false
-gtfs_summ22_shp_filt <- gtfs_summ22_shp |> 
-  filter(str_detect(route_id, "CR-") | str_detect(route_id, "Cape"))
+gtfs_summ23_shp_filt <- gtfs_summ23_shp |> 
+  filter(str_detect(route_id, "CR-") | str_detect(route_id, "Cape")) |> filter(!shape_id %in% c("canonical-SouFoxProv", "canonical-ProvidenceToSouthStationViaFoxboro", "ProvidenceToSouthStationViaFoxboro")) # remove fox from; south not regular service
 
-gtfs_summ22_shp_filt |> mapview(zcol = "route_id", color = viridis::turbo)
+gtfs_summ23_shp_filt |> mapview(zcol = "route_id", color = viridis::turbo)
 ```
 
 The shapes representing some of the same tracks are very close but not exactly the same. If not addressed, this would cause an inflation in directional route miles. We can buffer the routes slightly to coalesce similar track segments.
@@ -146,13 +134,13 @@ Zoom into a station like Readville to see the effects of the buffer on the final
 
 d <- 20
 
-gtfs_summ22_shp_filt_buff <- gtfs_summ22_shp_filt |> 
+gtfs_summ23_shp_filt_buff <- gtfs_summ23_shp_filt |> 
   st_buffer(d, endCapStyle = "SQUARE", joinStyle = "ROUND") |>
   summarize() |> 
   st_buffer(-1 * (d-1), endCapStyle = "SQUARE", joinStyle = "ROUND")
 
-mapview(gtfs_summ22_shp_filt_buff) + 
-  mapview(gtfs_summ22_shp_filt, 
+mapview(gtfs_summ23_shp_filt_buff) + 
+  mapview(gtfs_summ23_shp_filt, 
           zcol = "route_id", 
           color = viridis::turbo)
 ```
@@ -160,12 +148,12 @@ mapview(gtfs_summ22_shp_filt_buff) +
 We take the outside line of the buffer which gives us an approximation of the length of the routes. In this case, because we are concerned with directional route miles, each line can be thought of as one direction of the route, meaning we do not have to divide by two to get the length of the centerline.
 
 ```{r}
-gtfs_summ22_shp_line <- gtfs_summ22_shp_filt_buff |> st_cast(to = "MULTILINESTRING")
+gtfs_summ23_shp_line <- gtfs_summ23_shp_filt_buff |> st_cast(to = "MULTILINESTRING")
 ```
 
 ```{r}
-saveRDS(gtfs_summ22_shp_line,
-        "../data/processed/gtfs_summ22_shp_line.rds")
+saveRDS(gtfs_summ23_shp_line,
+        "../data/processed/gtfs_summ23_shp_line.rds")
 ```
 
 ## Perform Intersections
@@ -174,14 +162,12 @@ Read in the pre-generated datasets.
 
 ```{r}
 # Read in trains
-trains_pass <- readRDS("../data/processed/gtfs_summ22_shp_line.rds")
+trains_pass <- readRDS("../data/processed/gtfs_summ23_shp_line.rds")
 
 # Read in UZA
-UZA10_NE <- readRDS("../data/processed/UZA10_NE.rds")
 UZA20_NE <- readRDS("../data/processed/UZA20_NE.rds")
 
 # Create labels for helpful hovering.
-labs10 <- UZA10_NE$NAME10
 labs20 <- UZA20_NE$NAME20
 ```
 
@@ -190,15 +176,10 @@ We perform an intersection over each of the datasets.
 ```{r}
 #| warning: false
 #| message: false
-trains_pass_UZA10 <- st_intersection(trains_pass, UZA10_NE)
 trains_pass_UZA20 <- st_intersection(trains_pass, UZA20_NE)
 ```
 
 We map the datasets, showing only UZAs in MA.
-
-::: callout-tip
-The 2010 UZA boundaries are also shown over the modern alignments. This can be useful to see how the boundaries have changed in relation to the current alignments. Notice the new encroachment of the Providence UZA into what was once the Boston UZA, which now captures some of the Franklin Line.
-:::
 
 ```{r}
 #| column: screen-inset-shaded
@@ -209,10 +190,6 @@ UZA20_MA <- UZA20_NE |>
   filter(str_detect(NAME20, "MA")) |> 
   select(GEOID20, NAME20)
 
-UZA10_MA <- UZA10_NE |> 
-  filter(str_detect(NAME10, "MA")) |> 
-  select(GEOID10, NAME10)
-
 mapviewOptions(leafletHeight = 600)
 
 # Display the results for 2020 UZAs.
@@ -220,13 +197,6 @@ mapview(trains_pass |> summarize(name = "All Tracks"),
     layer.name = "All Tracks",
     color = "black",
     lwd = 2) +
-mapview(UZA10_MA, 
-        zcol = "NAME10",
-        col.regions = "white", 
-        alpha.regions = 0.01, 
-        legend = FALSE,
-        layer.name = "UZA 2010 Boundaries",
-        lwd = 2) +
 mapview(UZA20_MA |> filter(NAME20 %in% trains_pass_UZA20$NAME20), 
     zcol = "NAME20", 
     col.regions = viridis::turbo, 
@@ -265,35 +235,9 @@ trains_pass$len <- st_length(trains_pass) |>
 trains_pass_len_tot <- sum(trains_pass$len)
 
 # Calculate the length then drop the units for 2010 and 2020.  
-trains_pass_UZA10$len <- st_length(trains_pass_UZA10) |> 
-  units::drop_units()
 
 trains_pass_UZA20$len <- st_length(trains_pass_UZA20) |> 
   units::drop_units()
-
-#  Summarize 2010 by UZA ---------------
-trains_pass_UZA10_summ <- trains_pass_UZA10 |> 
-  group_by(NAME10, UZA_type) |> 
-  summarize(len_tot = sum(len)) |> 
-  st_drop_geometry() |> 
-  ungroup()
-
-# Find length in UZAs
-UZA10_len <- sum(trains_pass_UZA10_summ$len_tot)
-
-# Subtract and attach the non-UZA length. Make a fresh row to append.
-trains_pass_UZA10_summ <- bind_rows(
-  trains_pass_UZA10_summ,
-  tibble(NAME10 = "NonUZA", 
-         UZA_type = "NonUZA",
-         len_tot = trains_pass_len_tot - UZA10_len))
-
-# Calculate the percentage by UZA.
-trains_pass_UZA10_summ <- trains_pass_UZA10_summ |>
-  mutate(pct = len_tot/sum(len_tot))
-
-# Check Delta
-sum(trains_pass_UZA10_summ$len_tot) - trains_pass_len_tot
 
 # Summarize 2020 by Geometry ---------------
 trains_pass_UZA20_summ <- trains_pass_UZA20 |> 
@@ -323,21 +267,13 @@ Label and convert the units then export the data to CSVs.
 
 ```{r}
 # Label Units.
-trains_pass_UZA10_summ <- trains_pass_UZA10_summ |> 
-  rename(len_tot_m = len_tot) |> 
-  mutate(len_tot_mi = measurements::conv_unit(len_tot_m, "m", "mi"),
-         len_tot_mi = round(len_tot_mi, 3)) |> 
-  select(NAME10, UZA_type, len_tot_mi, pct)
-
 trains_pass_UZA20_summ <- trains_pass_UZA20_summ |> 
   rename(len_tot_m = len_tot) |> 
   mutate(len_tot_mi = measurements::conv_unit(len_tot_m, "m", "mi"),
          len_tot_mi = round(len_tot_mi, 3)) |> 
   select(NAME20, UZA_type, len_tot_mi, pct)
 
-write_csv(trains_pass_UZA10_summ |> arrange(desc(len_tot_mi)), "../output/trains_pass_gtfs_UZA10_summ.csv")
-
-write_csv(trains_pass_UZA20_summ |> arrange(desc(len_tot_mi)), "../output/trains_pass_gtfs_UZA20_summ.csv")
+write_csv(trains_pass_UZA20_summ |> arrange(desc(len_tot_mi)), "../output/trains_pass_gtfs_UZA20_summ24.csv")
 ```
 
 ::: panel-tabset
@@ -346,18 +282,6 @@ write_csv(trains_pass_UZA20_summ |> arrange(desc(len_tot_mi)), "../output/trains
 ```{r}
 #| echo: false
 trains_pass_UZA20_summ |> 
-  arrange(desc(len_tot_mi)) |> 
-  janitor::adorn_totals() |> 
-  gt() |> 
-  fmt_percent(pct) |> 
-  fmt_number(columns = c(len_tot_mi), decimals = 2)
-```
-
-## 2010 UZAs
-
-```{r}
-#| echo: false
-trains_pass_UZA10_summ |> 
   arrange(desc(len_tot_mi)) |> 
   janitor::adorn_totals() |> 
   gt() |> 
