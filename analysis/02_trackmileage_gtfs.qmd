@@ -120,6 +120,10 @@ We need to filter the shapes for commuter rail lines. We can view the shapes to 
 gtfs_summ23_shp_filt <- gtfs_summ23_shp |> 
   filter(str_detect(route_id, "CR-") | str_detect(route_id, "Cape")) |> filter(!shape_id %in% c("canonical-SouFoxProv", "canonical-ProvidenceToSouthStationViaFoxboro", "ProvidenceToSouthStationViaFoxboro")) # remove fox from; south not regular service
 
+# Filter out the capeflyer
+gtfs_summ23_shp_filt <- gtfs_summ23_shp_filt |> 
+  filter(!str_detect(route_id, "Cape"))
+
 gtfs_summ23_shp_filt |> mapview(zcol = "route_id", color = viridis::turbo)
 ```
 
