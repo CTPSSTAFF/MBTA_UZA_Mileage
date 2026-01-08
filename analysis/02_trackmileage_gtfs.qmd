@@ -120,10 +120,10 @@ We need to filter the shapes for commuter rail lines. We can view the shapes to 
 #| warning: false
 #| message: false
 gtfs_sprg25_shp_filt <- gtfs_sprg25_shp |> 
-  filter(str_detect(route_id, "CR-") | str_detect(route_id, "Cape")) |>
-  filter(str_detect(shape_id, "canonical-"),
-         !shape_id %in% c("canonical-SouFoxProv", 
-                          "canonical-ProvidenceToSouthStationViaFoxboro"))
+  filter(str_detect(route_id, "CR-") | str_detect(route_id, "Cape")) |> 
+  filter(!shape_id %in% c("canonical-SouFoxProv", 
+                          "canonical-ProvidenceToSouthStationViaFoxboro",
+                          "ProvidenceToSouthStationViaFoxboro"))
 # keep only canonical route segments (typical service)
 # remove atypical segment between Foxboro and Providence
 
@@ -161,6 +161,8 @@ We take the outside line of the buffer which gives us an approximation of the le
 ```{r}
 gtfs_sprg25_shp_line <- gtfs_sprg25_shp_filt_buff |> 
   st_cast(to = "MULTILINESTRING")
+
+mapview(gtfs_sprg25_shp_line)
 ```
 
 ```{r}
